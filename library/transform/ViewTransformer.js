@@ -1,6 +1,7 @@
 'use strict';
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import ReactNative, {
   View,
   Animated,
@@ -52,6 +53,7 @@ export default class ViewTransformer extends React.Component {
         translateY: this.state.translateY + dy / this.state.scale
       })
     });
+    this.isExceededCbCalled = false;
   }
 
   viewPortRect() {
@@ -210,6 +212,12 @@ export default class ViewTransformer extends React.Component {
   }
 
   onResponderRelease(evt, gestureState) {
+    if (this.isExceededCbCalled == true) {
+      this.isExceededCbCalled = false;
+      if (this.props.onExceed) {
+        this.props.onExceed(this.isExceededCbCalled);
+      }
+    }
     let handled = this.props.onTransformGestureReleased && this.props.onTransformGestureReleased({
         scale: this.state.scale,
         translateX: this.state.translateX,
@@ -297,14 +305,14 @@ export default class ViewTransformer extends React.Component {
   }
 
   performDoubleTapUp(pivotX, pivotY) {
-    console.log('performDoubleTapUp...pivot=' + pivotX + ', ' + pivotY);
     let curScale = this.state.scale;
     let scaleBy;
-    if (curScale > (1 + this.props.maxScale) / 2) {
+    if (curScale > 4) {
       scaleBy = 1 / curScale;
     } else {
       scaleBy = this.props.maxScale / curScale;
     }
+    scaleBy = Math.min(scaleBy, 2);
 
     let rect = transformedRect(this.transformedContentRect(), new Transform(
       scaleBy, 0, 0,
@@ -321,7 +329,16 @@ export default class ViewTransformer extends React.Component {
 
   applyResistance(dx, dy) {
     let availablePanDistance = availableTranslateSpace(this.transformedContentRect(), this.viewPortRect());
-
+    let threshold = (this.props.exceedThreshold) ? this.props.exceedThreshold : 0
+    if (availablePanDistance.left < threshold * -1 || availablePanDistance.right < threshold * -1) {
+      if (!this.isExceededCbCalled) {
+        this.isExceededCbCalled = true;
+        if (this.props.onExceed) this.props.onExceed(this.isExceededCbCalled, availablePanDistance.right < 0);
+      }
+    } else if (this.isExceededCbCalled) {
+      this.isExceededCbCalled = false;
+      if (this.props.onExceed) this.props.onExceed(this.isExceededCbCalled);
+    }
     if ((dx > 0 && availablePanDistance.left < 0)
       ||
       (dx < 0 && availablePanDistance.right < 0)) {
@@ -349,7 +366,6 @@ export default class ViewTransformer extends React.Component {
 
     let fromRect = this.transformedContentRect();
     if (fromRect.equals(targetRect)) {
-      console.log('animate...equal rect, skip animation');
       return;
     }
 
@@ -421,36 +437,36 @@ ViewTransformer.propTypes = {
   /**
    * Use false to disable transform. Default is true.
    */
-  enableTransform: React.PropTypes.bool,
+  enableTransform: PropTypes.bool,
 
   /**
    * Use false to disable scaling. Default is true.
    */
-  enableScale: React.PropTypes.bool,
+  enableScale: PropTypes.bool,
 
   /**
    * Use false to disable translateX/translateY. Default is true.
    */
-  enableTranslate: React.PropTypes.bool,
+  enableTranslate: PropTypes.bool,
 
   /**
    * Default is 20
    */
-  maxOverScrollDistance: React.PropTypes.number,
+  maxOverScrollDistance: PropTypes.number,
 
-  maxScale: React.PropTypes.number,
-  contentAspectRatio: React.PropTypes.number,
+  maxScale: PropTypes.number,
+  contentAspectRatio: PropTypes.number,
 
   /**
    * Use true to enable resistance effect on over pulling. Default is false.
    */
-  enableResistance: React.PropTypes.bool,
+  enableResistance: PropTypes.bool,
 
-  onViewTransformed: React.PropTypes.func,
+  onViewTransformed: PropTypes.func,
 
-  onTransformGestureReleased: React.PropTypes.func,
+  onTransformGestureReleased: PropTypes.func,
 
-  onSingleTapConfirmed: React.PropTypes.func
+  onSingleTapConfirmed: PropTypes.func
 };
 ViewTransformer.defaultProps = {
   maxOverScrollDistance: 20,
